@@ -50,13 +50,13 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "react-scripts build",
-    "build:pwa": "react-scripts build && node build-sw.js",
+    "build": "react-scripts build && node workbox-build.js",
+    "build:pwa": "npm run build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
     "dev:local": "echo 'Usando backend LOCAL...' && npm start",
     "dev:render": "echo 'Usando backend RENDER...' && npm start",
-    "build:hostinger": "echo ' Build para Hostinger (backend Render)...' && npm run build"
+    "build:hostinger": "echo ' Build para Hostinger (pwa completo)...' && npm run build"
   },
   "eslintConfig": {
     "extends": [

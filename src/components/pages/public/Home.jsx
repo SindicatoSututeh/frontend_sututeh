@@ -2,16 +2,12 @@ import React, { useEffect, useRef, useState } from "react";
 import { Box, Typography, Grid, Container } from "@mui/material";
 import { Link } from "react-router-dom";
 import { IconButton } from "@mui/material";
-
 import "animate.css";
-
-import misionVisionImg from "../../img/img.jpg"; // Imagen para misión y visión
-
+import misionVisionImg from "../../img/img.jpg";
 import { StyledButton } from "./StyledButton";
 import axios from "axios";
 import { API_URL } from "../../../config/apiConfig";
-
-// justo encima (o debajo) de `const Home = () => { … }`
+import { getCachedDatosEmpresa, getCachedResponse } from "../../utils/storage";
 
 const MisionVisionCarousel = ({ images, height = 320 }) => {
   const [idx, setIdx] = useState(0);
@@ -70,23 +66,62 @@ const Home = () => {
   const [nosotros, setNosotros] = useState([]);
 
   useEffect(() => {
-    axios
-      .get(`${API_URL}/api/datos-empresa`)
-      .then(({ data }) => {
-        if (data.length) setCompany(data[0]);
-      })
-      .catch(console.error);
+    // Intentar cargar datos de empresa
+    const loadCompany = async () => {
+      try {
+        const { data } = await axios.get(`${API_URL}/api/datos-empresa`);
+        if (data.length) {
+          console.log('✅ Datos empresa desde API:', data[0]);
+          setCompany(data[0]);
+        }
+      } catch (error) {
+        console.log('⚠️ Error de red, intentando cache...');
+        
+        // Intentar desde DATOS_EMPRESA store
+        let cached = await getCachedDatosEmpresa();
+        
+        // Si no hay, intentar desde API_CACHE
+        if (!cached) {
+          const apiCache = await getCachedResponse(`${API_URL}/api/datos-empresa`);
+          if (apiCache && apiCache.length > 0) {
+            cached = apiCache[0];
+          }
+        }
+        
+        if (cached) {
+          console.log('✅ Datos empresa cargados desde cache:', cached);
+          setCompany(cached);
+        } else {
+          console.error('❌ No hay datos de empresa en cache');
+        }
+      }
+    };
+
+    loadCompany();
   }, []);
 
   useEffect(() => {
-    axios.get(`${API_URL}/api/nosotros/vigentes`)
-  .then(({ data }) => setNosotros(data))
-  .catch(console.error)
-}, []);
- const mision = nosotros.find(r => r.seccion === "Misión" && r.estado === "Vigente");
-const vision = nosotros.find(r => r.seccion === "Visión" && r.estado === "Vigente")
-const valores = nosotros.find(r => r.seccion === "Valores" && r.estado === "Vigente");
+    // Intentar cargar nosotros
+    const loadNosotros = async () => {
+      try {
+        const { data } = await axios.get(`${API_URL}/api/nosotros/vigentes`);
+        setNosotros(data);
+      } catch (error) {
+        console.log('⚠️ Error de red, intentando cache...');
+        const cached = await getCachedResponse(`${API_URL}/api/nosotros/vigentes`);
+        if (cached) {
+          setNosotros(cached);
+          console.log('✅ Nosotros cargados desde cache');
+        }
+      }
+    };
 
+    loadNosotros();
+  }, []);
+
+  const mision = nosotros.find(r => r.seccion === "Misión" && r.estado === "Vigente");
+  const vision = nosotros.find(r => r.seccion === "Visión" && r.estado === "Vigente");
+  const valores = nosotros.find(r => r.seccion === "Valores" && r.estado === "Vigente");
 
   useEffect(() => {
     const observerOptions = { threshold: 0.3 };
@@ -123,7 +158,6 @@ const valores = nosotros.find(r => r.seccion === "Valores" && r.estado === "Vige
       }
     };
   }, []);
- 
 
   return (
     <Box>
@@ -188,12 +222,7 @@ const valores = nosotros.find(r => r.seccion === "Valores" && r.estado === "Vige
         }}
       >
         <Container maxWidth="lg">
-          <Grid
-            container
-            spacing={3}
-            alignItems="center"
-            justifyContent="center"
-          >
+          <Grid container spacing={3} alignItems="center" justifyContent="center">
             <Grid item xs={12} md={6}>
               <Typography
                 variant="h6"
@@ -217,7 +246,6 @@ const valores = nosotros.find(r => r.seccion === "Valores" && r.estado === "Vige
               >
                 Misión
               </Typography>
-
               <Typography
                 variant="body2"
                 sx={{ fontFamily: "Lato, Sans-serif", mb: 2 }}
@@ -235,7 +263,6 @@ const valores = nosotros.find(r => r.seccion === "Valores" && r.estado === "Vige
               >
                 Visión
               </Typography>
-
               <Typography
                 variant="body2"
                 sx={{ fontFamily: "Lato, Sans-serif" }}
@@ -244,10 +271,10 @@ const valores = nosotros.find(r => r.seccion === "Valores" && r.estado === "Vige
               </Typography>
             </Grid>
             <Grid item xs={12} md={6}>
-               <MisionVisionCarousel
-    images={[ mision?.img, vision?.img ]}
-    height={320}
-  />
+              <MisionVisionCarousel
+                images={[mision?.img, vision?.img]}
+                height={320}
+              />
             </Grid>
           </Grid>
         </Container>
@@ -266,13 +293,7 @@ const valores = nosotros.find(r => r.seccion === "Valores" && r.estado === "Vige
         }}
       >
         <Container maxWidth="lg">
-          <Grid
-            container
-            spacing={3}
-            alignItems="center"
-            justifyContent="center"
-          >
-             {/* Imagen a la izquierda */}
+          <Grid container spacing={3} alignItems="center" justifyContent="center">
             <Grid item xs={12} md={6}>
               <Box
                 component="img"
@@ -281,8 +302,6 @@ const valores = nosotros.find(r => r.seccion === "Valores" && r.estado === "Vige
                 sx={{ width: "90%", maxHeight: "340px", objectFit: "cover" }}
               />
             </Grid>
-            
-            {/* Texto a la derecha */}
             <Grid item xs={12} md={6}>
               <Typography
                 variant="h6"
@@ -295,14 +314,12 @@ const valores = nosotros.find(r => r.seccion === "Valores" && r.estado === "Vige
               >
                 Nuestros Principios Fundamentales
               </Typography>
-
               <Typography
                 variant="body2"
                 sx={{ fontFamily: "Lato, Sans-serif", mb: 2 }}
               >
                 {valores?.contenido || "Cargando valores…"}
               </Typography>
-             
             </Grid>
           </Grid>
         </Container>

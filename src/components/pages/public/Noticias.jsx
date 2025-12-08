@@ -18,55 +18,82 @@ import {
   Menu,
   MenuItem,
   Fade,
-  Link,
   Snackbar,
   Alert
 } from "@mui/material";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import SearchIcon from "@mui/icons-material/Search";
-import "animate.css"; // Asegúrate de tener Animate.css importado
-import { useNavigate } from "react-router-dom";
-import ChevronLeftIcon  from '@mui/icons-material/ChevronLeft';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import "animate.css";
+import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { API_URL } from "../../../config/apiConfig";
+import { getCachedNoticias } from "../../utils/storage";
 
-
-
-// 1) Componente de carrusel
 function ImageCarousel({ images, height = 130 }) {
   const [idx, setIdx] = useState(0);
   const [paused, setPaused] = useState(false);
-   const next = () => {
+  const [imgError, setImgError] = useState(false);
+  
+  const next = () => {
     setIdx(i => (i === images.length - 1 ? 0 : i + 1));
+    setImgError(false);
   };
   const prev = () => {
     setIdx(i => (i === 0 ? images.length - 1 : i - 1));
+    setImgError(false);
   };
- 
 
   useEffect(() => {
-    if (paused) return;                  // si está pausado, no arrancamos el timer
+    if (paused) return;
     const timer = setInterval(next, 10000);
     return () => clearInterval(timer);
-  }, [images.length, paused]);           
+  }, [images.length, paused]);
+
+  // Imagen de fallback si falla la carga
+  const handleImageError = () => {
+    console.warn('⚠️ Error al cargar imagen:', images[idx]);
+    setImgError(true);
+  };
 
   return (
-    <Box sx={{ position: 'relative', width: '100%', height }}
-    onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}>
-      <Box
-        component="img"
-        src={images[idx]}
-        alt=""
-        sx={{
-          width: '100%',
-          height,
-          objectFit: 'cover',
-          borderRadius: 1
-        }}
-      />
-      {images.length > 1 && (
+    <Box 
+      sx={{ position: 'relative', width: '100%', height }}
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+    >
+      {imgError ? (
+        <Box
+          sx={{
+            width: '100%',
+            height,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            bgcolor: '#f0f0f0',
+            borderRadius: 1
+          }}
+        >
+          <Typography variant="caption" color="text.secondary">
+            Imagen no disponible
+          </Typography>
+        </Box>
+      ) : (
+        <Box
+          component="img"
+          src={images[idx]}
+          alt=""
+          onError={handleImageError}
+          sx={{
+            width: '100%',
+            height,
+            objectFit: 'cover',
+            borderRadius: 1
+          }}
+        />
+      )}
+      {images.length > 1 && !imgError && (
         <>
           <IconButton
             onClick={prev}
@@ -104,8 +131,6 @@ function ImageCarousel({ images, height = 130 }) {
   );
 }
 
-
-
 const Noticias = () => {
   const navigate = useNavigate();
   const [newsList, setNewsList] = useState([]);
@@ -117,9 +142,9 @@ const Noticias = () => {
     severity: "info"
   });
 
-  // Estados para el menú de filtro
   const [anchorEl, setAnchorEl] = useState(null);
   const openMenu = Boolean(anchorEl);
+  
   const handleFilterClick = (event) => {
     setAnchorEl(event.currentTarget);
   };
@@ -127,7 +152,6 @@ const Noticias = () => {
     setAnchorEl(null);
   };
 
-  // Opciones de filtro
   const filterOptions = ["Más reciente", "Última semana", "Último mes"];
 
   const handleFilterSelect = (option) => {
@@ -139,41 +163,71 @@ const Noticias = () => {
       severity: "info"
     });
   };
-  // 1) Carga desde API
+
   useEffect(() => {
-    axios.get(`${API_URL}/api/noticias/publicados`)
-      .then(({ data }) => {
-        // parsear JSON de imágenes
+    // Cargar noticias
+    const loadNoticias = async () => {
+      try {
+        const { data } = await axios.get(`${API_URL}/api/noticias/publicados`);
         const adapt = data.map(n => ({
-          id:          n.id,
-          title:       n.titulo,
+          id: n.id,
+          title: n.titulo,
           description: n.descripcion,
-          date:        n.fecha_publicacion.split('T')[0],
-          images:      JSON.parse(n.imagenes),
+          date: n.fecha_publicacion.split('T')[0],
+          images: JSON.parse(n.imagenes),
         }));
         setNewsList(adapt);
-      })
-      .catch(err => {
-        console.error(err);
-        setSnackbar({ open: true, message: 'Error cargando noticias', severity: 'error' });
-      });
+        
+        // Precargar imágenes en background
+        console.log('🖼️ Precargando imágenes de noticias...');
+        adapt.forEach(noticia => {
+          noticia.images.forEach(imgUrl => {
+            const img = new Image();
+            img.src = imgUrl;
+          });
+        });
+      } catch (error) {
+        console.log('⚠️ Error de red, intentando cache...');
+        const cached = await getCachedNoticias();
+        if (cached && cached.length > 0) {
+          const adapt = cached.map(n => ({
+            id: n.id,
+            title: n.titulo,
+            description: n.descripcion,
+            date: n.fecha ? n.fecha.split('T')[0] : '',
+            images: n.imagenes || [],
+          }));
+          setNewsList(adapt);
+          console.log('✅ Noticias cargadas desde cache');
+          setSnackbar({
+            open: true,
+            message: 'Mostrando noticias guardadas (modo offline)',
+            severity: 'info'
+          });
+        } else {
+          setSnackbar({
+            open: true,
+            message: 'No hay noticias disponibles offline',
+            severity: 'warning'
+          });
+        }
+      }
+    };
+
+    loadNoticias();
   }, []);
 
-  // Filtrado básico de noticias (según el título o descripción)
   const filteredNews = newsList.filter(news =>
     news.title.toLowerCase().includes(search.toLowerCase()) ||
     news.description.toLowerCase().includes(search.toLowerCase())
   );
 
-  
-  // Función para "abrir" una noticia (aún no implementada)
- const handleOpenNews = (news) => {
-    // navegar a /noticias/{id}
+  const handleOpenNews = (news) => {
     navigate(`/noticias/${news.id}`);
   };
+
   return (
     <Container maxWidth="lg" sx={{ mt: 15, mb: 6 }}>
-      {/* Título principal */}
       <Box sx={{ textAlign: "center", mb: 3 }}>
         <Typography
           variant="h4"
@@ -197,7 +251,6 @@ const Noticias = () => {
       </Box>
 
       <Grid container spacing={2}>
-        {/* Columna izquierda: buscador, filtro y mini tarjetas (solo en escritorio) */}
         <Grid item xs={12} md={3}>
           <Box sx={{ mb: 1.5, textAlign: "center" }}>
             <TextField
@@ -242,7 +295,6 @@ const Noticias = () => {
             </Typography>
           </Box>
 
-          {/* Menú desplegable para filtrar */}
           <Menu
             id="fade-menu"
             MenuListProps={{
@@ -260,7 +312,6 @@ const Noticias = () => {
             ))}
           </Menu>
 
-          {/* Mini tarjetas: se muestran solo en escritorio */}
           <Box
             sx={{
               display: { xs: "none", md: "block" },
@@ -297,7 +348,6 @@ const Noticias = () => {
                         },
                       }}
                     />
-
                     <Box>
                       <Typography
                         variant="body2"
@@ -305,7 +355,6 @@ const Noticias = () => {
                       >
                         {news.title}
                       </Typography>
-
                       <Typography variant="caption" color="text.secondary">
                         {news.date}
                       </Typography>
@@ -317,7 +366,6 @@ const Noticias = () => {
           </Box>
         </Grid>
 
-        {/* Columna derecha: tarjetas de noticias principales */}
         <Grid item xs={12} md={9}>
           <Box sx={{ maxHeight: { xs: "none", md: 600 }, overflowY: "auto" }}>
             <Grid container spacing={2}>
@@ -348,14 +396,11 @@ const Noticias = () => {
                       onClick={() => handleOpenNews(news)}
                       sx={{ flexGrow: 1 }}
                     >
-                      <ImageCarousel
-                      images={news.images}
-                        height={130}
-                      />
+                      <ImageCarousel images={news.images} height={130} />
                       <CardContent>
                         <Typography
                           gutterBottom
-                          variant="body2" 
+                          variant="body2"
                           component="div"
                           sx={{ fontSize: '0.8rem' }}
                         >

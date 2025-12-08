@@ -7,41 +7,27 @@ import {
   Box,
   Grid,
   Paper,
-  Avatar,
   Slide,
   Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogContentText,
   IconButton,
   useMediaQuery,
   useTheme,
 } from "@mui/material";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
-import CloseIcon from "@mui/icons-material/Close";
 import axios from "axios";
 import { API_URL } from "../../../config/apiConfig";
-import "animate.css"; // Para las animaciones, si las tenías antes
+import { getCachedResponse } from "../../utils/storage";
+import "animate.css";
 
-// ----------------------------------------------
-// Transición para los diálogos tipo slide
-// ----------------------------------------------
 const Transition = React.forwardRef(function Transition(props, ref) {
   return <Slide direction="up" ref={ref} {...props} />;
 });
 
-// ----------------------------------------------
-// Helper para obtener las iniciales de un nombre completo
-// ----------------------------------------------
 const getInitials = (fullName) => {
   const parts = fullName.trim().split(" ").filter(p => p.length > 0);
   return parts.map(p => p.charAt(0)).join("").toUpperCase();
 };
 
-// ----------------------------------------------
-// Dada una lista de "puestos", los agrupa en filas de longitud 1, 2, 3, ...  
-// Ejemplo: si pasas 7 elementos → [[A],[B,C],[D,E,F],[G]]
-// ----------------------------------------------
 const buildPyramidRows = (items) => {
   const rows = [];
   let startIndex = 0;
@@ -57,117 +43,90 @@ const buildPyramidRows = (items) => {
   return rows;
 };
 
-// ==============================================
-// Componente principal: QuienesSomos
-// ==============================================
 export default function QuienesSomos() {
-  // --------------------------------------------------
-  // 1) Datos de "Quiénes Somos" (texto e imagen)
-  // --------------------------------------------------
   const [qs, setQs] = useState(null);
-
-  // --------------------------------------------------
-  // 2) Array con todos los puestos (tal como devuelve GET /api/puestos)
-  //    Cada elemento tendrá, al menos:
-  //      {
-  //        id,
-  //        nombre,
-  //        responsabilidad,
-  //        usuario_id,
-  //        usuario_nombre,
-  //        usuario_apellido_paterno,
-  //        usuario_apellido_materno,
-  //        usuario_url_foto
-  //      }
-  // --------------------------------------------------
   const [allPuestos, setAllPuestos] = useState([]);
-
-  // --------------------------------------------------
-  // 3) Para mostrar en un modal un puesto concreto (solo lectura)
-  // --------------------------------------------------
   const [selectedPuesto, setSelectedPuesto] = useState(null);
 
-  // --------------------------------------------------
-  // Para responsividad (si quisieras ajustar anchos, etc.)
-  // --------------------------------------------------
   const theme = useTheme();
   const isSmallScreen = useMediaQuery(theme.breakpoints.down("md"));
 
-  // --------------------------------------------------
-  // useEffect (montaje)
-  //  a) Carga "Quiénes Somos"
-  //  b) Carga todos los puestos
-  // --------------------------------------------------
   useEffect(() => {
-    // ============= A) "Quiénes Somos" =============
-    axios
-      .get(`${API_URL}/api/nosotros/vigentes`)
-      .then(({ data }) => {
+    // Cargar "Quiénes Somos"
+    const loadQuienesSomos = async () => {
+      try {
+        const { data } = await axios.get(`${API_URL}/api/nosotros/vigentes`);
         const quien = data.find(
           (r) => r.seccion === "Quiénes Somos" && r.estado === "Vigente"
         );
         setQs(quien);
-      })
-      .catch((err) => {
-        console.error("Error al traer Quiénes Somos:", err);
-      });
-
-    // ============= B) Todos los puestos =============
-    axios
-      .get(`${API_URL}/api/puestos`)
-      .then(({ data }) => {
-        /**
-         * data es un arreglo de objetos:
-         *   { 
-         *      id,
-         *      nombre,
-         *      responsabilidad,
-         *      usuario_id,
-         *      usuario_nombre,
-         *      usuario_apellido_paterno,
-         *      usuario_apellido_materno,
-         *      usuario_url_foto 
-         *   }, ...
-         *
-         * Mapeamos cada uno a un objeto más sencillo:
-         *   {
-         *     puestoId: <id>,
-         *     role: <nombre>,       // nombre del puesto
-         *     user: null  OR {      // si está asignado, tenemos info de usuario
-         *       id: usuario_id,
-         *       fullName: `${usuario_nombre} ${usuario_apellido_paterno} ${usuario_apellido_materno}`,
-         *       urlFoto: usuario_url_foto
-         *     }
-         *   }
-         */
-       const mapped = data.map((row) => {
-  let fullName = "";
-  if (row.usuario_id) {
-    fullName = `${row.usuario_nombre} ${row.usuario_apellido_paterno} ${row.usuario_apellido_materno || ""}`.trim();
-  }
-  return {
-    puestoId: row.puesto_id,          // si el backend te devuelve "puesto_id"
-    role: row.puesto_nombre,          // <-- aquí cambias a "puesto_nombre"
-    user: row.usuario_id
-      ? {
-          id: row.usuario_id,
-          fullName,
-          
+      } catch (error) {
+        console.log('⚠️ Error de red, intentando cache...');
+        const cached = await getCachedResponse(`${API_URL}/api/nosotros/vigentes`);
+        if (cached) {
+          const quien = cached.find(
+            (r) => r.seccion === "Quiénes Somos" && r.estado === "Vigente"
+          );
+          setQs(quien);
+          console.log('✅ Quiénes Somos cargados desde cache');
         }
-      : null,
-  };
-});
+      }
+    };
 
-        setAllPuestos(mapped);
-      })
-      .catch((err) => {
-        console.error("Error al traer puestos:", err);
-      });
+    loadQuienesSomos();
   }, []);
 
-  // --------------------------------------------------
-  // Para abrir/cerrar modal de detalle de un solo puesto
-  // --------------------------------------------------
+  useEffect(() => {
+    // Cargar puestos
+    const loadPuestos = async () => {
+      try {
+        const { data } = await axios.get(`${API_URL}/api/puestos`);
+        const mapped = data.map((row) => {
+          let fullName = "";
+          if (row.usuario_id) {
+            fullName = `${row.usuario_nombre} ${row.usuario_apellido_paterno} ${row.usuario_apellido_materno || ""}`.trim();
+          }
+          return {
+            puestoId: row.puesto_id,
+            role: row.puesto_nombre,
+            user: row.usuario_id
+              ? {
+                  id: row.usuario_id,
+                  fullName,
+                }
+              : null,
+          };
+        });
+        setAllPuestos(mapped);
+      } catch (error) {
+        console.log('⚠️ Error de red, intentando cache...');
+        const cached = await getCachedResponse(`${API_URL}/api/puestos`);
+        if (cached) {
+          const mapped = cached.map((row) => {
+            let fullName = "";
+            if (row.usuario_id) {
+              fullName = `${row.usuario_nombre} ${row.usuario_apellido_paterno} ${row.usuario_apellido_materno || ""}`.trim();
+            }
+            return {
+              puestoId: row.puesto_id,
+              role: row.puesto_nombre,
+              user: row.usuario_id
+                ? {
+                    id: row.usuario_id,
+                    fullName,
+                  }
+                : null,
+            };
+          });
+          setAllPuestos(mapped);
+          console.log('✅ Puestos cargados desde cache');
+        }
+      }
+    };
+
+    loadPuestos();
+  }, []);
+
   const handleOpenDetalle = (puestoObj) => {
     setSelectedPuesto(puestoObj);
   };
@@ -175,44 +134,24 @@ export default function QuienesSomos() {
     setSelectedPuesto(null);
   };
 
-  // --------------------------------------------------
-  // Suponemos que en la BD ya has insertado los primeros
-  // X puestos que pertenecen al "Comité Ejecutivo" y luego
-  // los siguientes Y puestos para la "Comisión de Vigilancia…".
-  // Aquí, por simplicidad, vamos a tomar:
-  //   - Los primeros 10 índices (0..9) → Comité Ejecutivo
-  //   - El resto (10..13)            → Comisión de Vigilancia, Honor y Justicia
-  // Ajusta los cortes (slice) según tu número real de puestos.
-  // --------------------------------------------------
   const comiteEjecutivo = allPuestos.slice(0, 10);
   const comisionVHJ = allPuestos.slice(10, 20);
 
-  // --------------------------------------------------
-  // Ahora dividimos cada grupo en "filas" piramidales:
-  //   comisiónEjecutivo: filas de 1, 2, 3, 4  (total 10)
-  //   comisionVHJ:       filas de 1, 1, 2     (total 4)
-  // --------------------------------------------------
   const filasComite = buildPyramidRows(comiteEjecutivo);
-const filasComision = [];
-let start = 0;
-const tamaños = [1, 1, 2, 3, 4]; // 1, 1, 2, 3, 4, … según vayas necesitando
-for (let t of tamaños) {
-  if (start >= comisionVHJ.length) break;
-  filasComision.push(comisionVHJ.slice(start, start + t));
-  start += t;
-}
-// Si sobra algún elemento (porque comisionVHJ.length > sum(tamaños)), lo metemos en una última fila:
-if (start < comisionVHJ.length) {
-  filasComision.push(comisionVHJ.slice(start));
-}
-  // --------------------------------------------------
-  // Renderizado
-  // --------------------------------------------------
+  const filasComision = [];
+  let start = 0;
+  const tamaños = [1, 1, 2, 3, 4];
+  for (let t of tamaños) {
+    if (start >= comisionVHJ.length) break;
+    filasComision.push(comisionVHJ.slice(start, start + t));
+    start += t;
+  }
+  if (start < comisionVHJ.length) {
+    filasComision.push(comisionVHJ.slice(start));
+  }
+
   return (
     <>
-      {/** ================================================= */}
-      {/** Sección: ¿Quiénes Somos? (texto + imagen)           */}
-      {/** ================================================= */}
       <Box sx={{ backgroundColor: "#fff", py: { xs: 5, md: 8 } }}>
         <Container maxWidth="md">
           <Grid
@@ -222,7 +161,6 @@ if (start < comisionVHJ.length) {
             justifyContent="center"
             sx={{ flexDirection: { xs: "column", md: "row" } }}
           >
-            {/* Texto */}
             <Grid
               item
               xs={12}
@@ -254,7 +192,6 @@ if (start < comisionVHJ.length) {
               </Box>
             </Grid>
 
-            {/* Imagen */}
             <Grid
               item
               xs={12}
@@ -277,9 +214,6 @@ if (start < comisionVHJ.length) {
         </Container>
       </Box>
 
-      {/** ================================================= */}
-      {/** Sección: Estructura Organizacional (dinámico)       */}
-      {/** ================================================= */}
       <Box sx={{ backgroundColor: "#f7f7f7", py: { xs: 3, md: 5 } }}>
         <Container maxWidth="lg">
           <Box sx={{ textAlign: "center", mb: 2 }}>
@@ -295,9 +229,6 @@ if (start < comisionVHJ.length) {
             </Typography>
           </Box>
 
-          {/** -------------------- */}
-          {/** 1) "Comité Ejecutivo" */}
-          {/** -------------------- */}
           <Typography
             variant="subtitle1"
             sx={{
@@ -323,7 +254,6 @@ if (start < comisionVHJ.length) {
                 }}
               >
                 {fila.map((item, idx) => {
-                  // Cada "item" es { puestoId, role, user: {...} | null }
                   const fullName = item.user ? item.user.fullName : "";
                   return (
                     <Grid item key={"comite-" + rowIndex + "-" + idx}>
@@ -339,18 +269,16 @@ if (start < comisionVHJ.length) {
                         }}
                         onClick={() => handleOpenDetalle(item)}
                       >
-                        {/** 1) Nombre del puesto, justo encima del Avatar */}
                         <Typography
                           variant="body2"
                           sx={{
                             fontWeight: 600,
-                            mb: 0.5, // margen inferior
+                            mb: 0.5,
                           }}
                         >
                           {item.role}
                         </Typography>
 
-                        {/** 2) Usuario asignado (avatar + nombre) */}
                         {item.user ? (
                           <Box
                             sx={{
@@ -360,7 +288,6 @@ if (start < comisionVHJ.length) {
                               mt: 0.5,
                             }}
                           >
-                            
                             <Typography variant="caption">{fullName}</Typography>
                           </Box>
                         ) : (
@@ -392,9 +319,6 @@ if (start < comisionVHJ.length) {
             </Box>
           ))}
 
-          {/** ------------------------------------------------- */}
-          {/** 2) "Comisión de Vigilancia, Honor y Justicia"     */}
-          {/** ------------------------------------------------- */}
           <Typography
             variant="subtitle1"
             sx={{
@@ -436,7 +360,6 @@ if (start < comisionVHJ.length) {
                         }}
                         onClick={() => handleOpenDetalle(item)}
                       >
-                        {/** Nombre del puesto */}
                         <Typography
                           variant="body2"
                           sx={{ fontWeight: 600, mb: 0.5 }}
@@ -444,7 +367,6 @@ if (start < comisionVHJ.length) {
                           {item.role}
                         </Typography>
 
-                        {/** Usuario asignado (avatar + nombre) */}
                         {item.user ? (
                           <Box
                             sx={{
@@ -486,11 +408,6 @@ if (start < comisionVHJ.length) {
           ))}
         </Container>
       </Box>
-
-      {/** =========================================================== */}
-      {/** 3) Modal de detalle de un solo puesto (solo lectura)        */}
-      {/** =========================================================== */}
-      
     </>
   );
 }
