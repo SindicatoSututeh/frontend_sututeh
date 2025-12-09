@@ -203,7 +203,7 @@ const Login = () => {
             <Box sx={{ transform: "scale(0.9)", transformOrigin: "center" }}>
               <ReCAPTCHA
               ref={captchaRef}
-                sitekey="6Lf7gIAqAAAAALfemazpV_kuaVgRHQNgrFi8pQkD"
+                sitekey={process.env.REACT_APP_RECAPTCHA_SITE_KEY}
                 onChange={handleCaptchaChange}
               />
             </Box>

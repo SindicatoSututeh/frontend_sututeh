@@ -19,7 +19,7 @@ const getApiUrl = () => {
   }
 
   // ☁️ Caso 3: producción (Render / Hostinger)
-  return process.env.REACT_APP_API_URL || 'https://sututeh-server.onrender.com';
+  return process.env.REACT_APP_API_URL || 'https://backend-sututeh.onrender.com';
 };
 
 export const API_URL = getApiUrl();

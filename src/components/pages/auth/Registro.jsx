@@ -387,7 +387,7 @@ if (activeStep === 0) {
               <DatePicker label="Fecha de Nacimiento" value={dateOfBirth} onChange={(val) => setDateOfBirth(val)} slotProps={{ textField: { fullWidth: true, margin: "dense", error: Boolean(errors.dateOfBirth), helperText: errors.dateOfBirth, sx: inputStyles } }} />
             </LocalizationProvider>
             <Box sx={{ mt: 2, display: "flex", flexDirection: "column", alignItems: "center" }}>
-              <Box sx={{ transform: "scale(0.9)", transformOrigin: "center" }}><ReCAPTCHA  ref={captchaRef} sitekey="6Lf7gIAqAAAAALfemazpV_kuaVgRHQNgrFi8pQkD" onChange={(val) => { setCaptchaValue(val); setErrors((p) => ({ ...p, captcha: undefined })); }} /></Box>
+              <Box sx={{ transform: "scale(0.9)", transformOrigin: "center" }}><ReCAPTCHA  ref={captchaRef} sitekey={process.env.REACT_APP_RECAPTCHA_SITE_KEY} onChange={(val) => { setCaptchaValue(val); setErrors((p) => ({ ...p, captcha: undefined })); }} /></Box>
               {errors.captcha && <Typography variant="caption" color="error" sx={{ mt: 1 }}>{errors.captcha}</Typography>}
             </Box>
           </Box>
