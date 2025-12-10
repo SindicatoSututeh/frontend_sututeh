@@ -480,11 +480,20 @@ useEffect(() => {
             </Box>
 
             {/* Lista de usuarios sin asignar (dinámica) */}
-            <Box sx={{ minHeight: 300, p: 2, border: '1px dashed #ccc' }}>
-              {filteredUnassigned.map(user => (
-                <DraggableUser key={user.id} user={user} />
-              ))}
-            </Box>
+            <Box
+  sx={{
+    minHeight: 300,
+    maxHeight: 400,    // 🔥 altura máxima con scroll
+    overflowY: "auto", // 🔥 activa scrollbar vertical
+    p: 2,
+    border: '1px dashed #ccc',
+    borderRadius: '6px'
+  }}
+>
+  {filteredUnassigned.map(user => (
+    <DraggableUser key={user.id} user={user} />
+  ))}
+</Box>
           </Paper>
 
           {/* Columna de Puestos (dinámicos) */}
@@ -492,9 +501,19 @@ useEffect(() => {
             <Typography variant="h6" align="center" gutterBottom sx={{ fontSize: '1rem' }}>
               Lista de Puestos
             </Typography>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {roles.map(role => (
-                <Paper key={role.id} sx={{ p: 1, position: 'relative' }} variant="outlined">
+            <Box
+  sx={{
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 2,
+    maxHeight: 500,      // 🔥 define altura máxima
+    overflowY: "auto",   // 🔥 permite scroll
+    pr: 1                // evita que el scrollbar tape contenido
+  }}
+>
+  {roles.map(role => (
+    <Paper key={role.id} sx={{ p: 1 }} variant="outlined">
+
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <Tooltip title="Más información" arrow>
                       <Typography
